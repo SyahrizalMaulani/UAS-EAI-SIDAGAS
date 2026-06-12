@@ -1,14 +1,14 @@
-# SIDAGAS: Sistem Informasi Dagang (Microservices Architecture)
-
-SIDAGAS adalah platform terintegrasi untuk manajemen pesanan, inventaris, pengiriman, dan keuangan dalam industri air minum (galon) dan gas LPG. Proyek ini dibangun sebagai implementasi akhir dari mata kuliah **Enterprise Application Integration (EAI)**.
-
-Sistem ini mengadopsi arsitektur **Microservices** yang fully-dockerized, digerakkan oleh event (Event-Driven) menggunakan RabbitMQ, dan menerapkan pendekatan pola integrasi (Enterprise Integration Patterns).
+# 💧 SIDAGAS (Sistem Informasi Dagang)
+**Enterprise Application Integration (EAI) - Tugas Besar**
 
 ---
 
-## 🏗️ 1. Arsitektur Proyek & Desain Sistem
+## 📖 Deskripsi Proyek
+**SIDAGAS** adalah sebuah platform sistem informasi manajemen distribusi air minum (galon) dan gas LPG. Proyek ini dibangun khusus untuk memenuhi kriteria arsitektur **Enterprise Application Integration (EAI)**. 
 
-Sistem dipecah menjadi beberapa layanan kecil yang mandiri (Shared-Nothing Architecture) di mana setiap layanan memiliki database dan *domain logic*-nya sendiri. Sebuah **API Gateway** bertindak sebagai titik masuk tunggal (Single Entry Point) bagi Client (seperti Frontend Laravel/Vue/React).
+Bukannya menggunakan satu aplikasi besar yang lambat (Monolitik), SIDAGAS memecah berbagai logika bisnis menjadi layanan-layanan kecil yang mandiri (**Microservices**). Proyek ini menunjukkan integrasi skala *Enterprise* di mana sistem-sistem yang berbeda bahasa komunikasi (GraphQL vs REST) dan format data (JSON vs XML) dapat saling bertukar informasi secara lancar melalui sebuah **API Gateway** dan jalur pesan asinkron menggunakan **RabbitMQ**.
+
+---
 
 ### Diagram Arsitektur (Mermaid)
 
@@ -61,54 +61,20 @@ graph TD
 
 ---
 
-## ⚡ 2. Implementasi GraphQL
+## 🏗️ Daftar Sistem & Endpoint
 
-Berbeda dengan REST tradisional yang rentan terhadap *over-fetching* atau *under-fetching*, layanan Order, Inventory, dan Delivery menggunakan **GraphQL** (via `express-graphql` dan `graphql`).
+Seluruh sistem di- _hosting_ di kontainer Docker terpisah. Berikut adalah daftar komponen yang beroperasi dalam ekosistem SIDAGAS:
 
-### Mengapa GraphQL?
-- Klien (seperti Dashboard Admin atau App Driver) dapat meminta data secara spesifik. Misalnya, Driver hanya butuh `id` dan `alamat`, sementara Admin butuh seluruh field transaksi. Klien cukup menyesuaikan *Query*-nya tanpa mengubah kode di backend.
-
-### Contoh Kasus (Lengkap):
-
-**1. Query (Mengambil Data)**
-Klien hanya ingin mengetahui nama pelanggan dan status pesanan:
-```graphql
-query {
-  getOrders {
-    customer_name
-    status
-  }
-}
-```
-*Respons JSON dari Server:*
-```json
-{
-  "data": {
-    "getOrders": [
-      { "customer_name": "Budi", "status": "pending" },
-      { "customer_name": "Siti", "status": "completed" }
-    ]
-  }
-}
-```
-
-**2. Mutation (Memodifikasi Data)**
-Klien membuat pesanan baru:
-```graphql
-mutation {
-  createOrder(customer_name: "Ahmad", item_name: "Galon Aqua", quantity: 2) {
-    id
-    status
-  }
-}
-```
-*(Saat mutasi ini berhasil, Order Service secara otomatis melempar pesan ke RabbitMQ yang akan memicu Inventory Service memotong stok).*
+| Nama Layanan | Port Internal | Port Host | Endpoint Utama | Deskripsi |
+|---|---|---|---|---|
+| **API Gateway** | `3000` | `3000` | `http://localhost:3000/*` | Entry point utama (Router). Semua *client* menembak ke sini. |
+| **Order Service** | `3001` | `3001` | `http://localhost:3001/graphql` | Mengurus pembuatan transaksi & pesanan masuk. |
+| **Inventory Service**| `3002` | `3002` | `http://localhost:3002/graphql` | Mengelola sisa stok galon/gas dan *intake* barang produksi. |
+| **Delivery Service** | `3003` | `3003` | `http://localhost:3003/graphql` | Mengelola data pengiriman, jadwal armada, dan status kurir. |
+| **Finance Service** | `3004` | `3004` | `http://localhost:3004/verify` | Menerima dan memverifikasi laporan pembayaran dari transaksi. |
+| **RabbitMQ** | `5672` | `5672` / `15672`| `amqp://localhost:5672` | *Message Broker* untuk komunikasi sistem asinkron. |
 
 ---
-
-## 🐳 3. Implementasi Docker
-
-Sistem ini dikemas menggunakan **Docker** dan **Docker Compose** agar siap dijalankan (*production-ready*) tanpa perlu pusing memikirkan konfigurasi environment lokal (*"It works on my machine" problem*).
 
 ### Struktur Container
 
@@ -134,18 +100,81 @@ File `docker-compose.yml` mengorkestrasi 10 buah kontainer yang saling terhubung
 
 ---
 
-## 🚀 4. Cara Menjalankan (*Quick Start*)
+## 🗃️ Format Data & Protokol Tiap Sistem
 
-1. Pastikan **Docker Desktop** menyala.
-2. Buka terminal di folder proyek ini (`E:\SIDAGAS\EAI_UAS`).
-3. Jalankan perintah:
+Sistem ini sengaja didesain untuk mensimulasikan lingkungan perusahaan (Enterprise) yang seringkali menggunakan protokol dan format data yang beraneka ragam (Heterogenitas Data).
+
+### 1. Order, Inventory, dan Delivery Service (Modern)
+- **Protokol:** HTTP POST
+- **Tipe Komunikasi:** GraphQL API
+- **Format Data (In & Out):** JSON (JavaScript Object Notation)
+- **Alasan:** Menghindari *over-fetching* (mengambil data tak perlu). UI Frontend dapat me- *request* bentuk data (kolom) sesuai kebutuhan (misal: hanya butuh "status" pesanan tanpa perlu menarik semua biodata pelanggan).
+
+### 2. Finance Service (Simulasi Sistem Legacy/Jadul)
+- **Protokol:** REST API (HTTP POST)
+- **Format Data (In & Out):** XML (eXtensible Markup Language)
+- **Alasan:** Banyak sistem perbankan kuno/ERP yang masih meminta XML. Sistem ini menuntut API Gateway SIDAGAS bertindak sebagai **Message Translator** yang mengubah JSON pengguna menjadi XML sebelum diserahkan ke Finance.
+
+### 3. Komunikasi Antar Layanan (Server-to-Server)
+- **Protokol:** AMQP (Advanced Message Queuing Protocol) via RabbitMQ.
+- **Tipe Komunikasi:** Event-Driven (Asynchronous / Publish-Subscribe)
+- **Cara Kerja:** Layanan *Order* tidak memanggil API *Inventory* secara HTTP. *Order* hanya berteriak: *"Hei, ada pesanan baru!"* ke RabbitMQ. *Inventory* yang kebetulan sedang *standby* mendengar teriakan tersebut dan langsung memotong stoknya sendiri.
+
+---
+
+## 🚀 Panduan Menjalankan Proyek (Langkah Rinci)
+
+Pastikan aplikasi **Docker Desktop** (atau Docker Engine) telah terinstal dan dalam status *Running* di komputer Anda.
+
+### Tahap 1: Persiapan Repository
+1. **Clone Repository (Jika belum)**
+   Buka terminal/CMD Anda, lalu jalankan:
    ```bash
-   docker compose up --build -d
+   git clone https://github.com/[username_anda]/SIDAGAS.git
+   cd SIDAGAS/EAI_UAS
    ```
-4. Tunggu beberapa saat untuk inisialisasi awal database (hanya saat pertama kali).
-5. **Verifikasi:**
-   - Akses API Gateway: `http://localhost:3000`
-   - Akses UI RabbitMQ: `http://localhost:15672` (guest/guest)
-   - Buka Database GUI Client (seperti DBeaver atau MySQL Workbench) di localhost port `33061` hingga `33064`.
+2. **Konfigurasi Environment**
+   Salin file konfigurasi lingkungan. Secara *default*, sistem sudah bisa jalan langsung tanpa pengubahan.
+   *(Jika file `.env` belum ada, buatlah berdasarkan `.env.example`)*.
 
-*(Untuk antarmuka grafis pengguna, Anda bisa menjalankan proyek Laravel di folder Backend).*
+### Tahap 2: Menyalakan Infrastruktur (Docker Compose)
+Dari dalam direktori `EAI_UAS` (yang memuat file `docker-compose.yml`), ketikkan satu baris sakti berikut di terminal Anda:
+
+```bash
+docker compose up --build -d
+```
+
+**Penjelasan Perintah:**
+- `up`: Memerintahkan Docker menyalakan seluruh sistem.
+- `--build`: Memaksa Docker untuk membaca ulang kode Javascript Node.js Anda dan membangun *image* baru jika ada perubahan.
+- `-d`: (Detached Mode) Menjalankan server di latar belakang agar terminal Anda tidak terkunci dan tetap bisa digunakan.
+
+### Tahap 3: Verifikasi Sistem Telah Aktif
+Membangun puluhan komponen dan 4 database MySQL secara bersamaan membutuhkan waktu sekitar **30 - 60 detik** pada saat pertama kali berjalan (tergantung kecepatan laptop).
+
+Cara mengecek apakah semua sudah *Running*:
+1. **Buka Docker Desktop** -> Tab **Containers**. Pastikan grup `eai_uas` memiliki 10 kontainer dengan status ikon **Hijau (Running)**.
+2. **Cek Koneksi Gateway:** Buka Web Browser, ketik `http://localhost:3000`. Jika terbuka informasi server (atau pesan respons JSON), artinya sistem *online*.
+3. **Cek RabbitMQ:** Buka `http://localhost:15672`. Login dengan Username `guest` dan Password `guest`. Jika muncul *dashboard* statistik pesan, sistem *Broker* sehat.
+
+### Tahap 4: Mengintegrasikan ke Frontend (Laravel UI)
+Setelah Backend Microservices Docker Anda menyala sehat:
+1. Buka tab terminal baru.
+2. Masuk ke folder Laravel:
+   ```bash
+   cd ../Backend
+   ```
+3. Instal library PHP dan NPM:
+   ```bash
+   composer install
+   npm install
+   ```
+4. Jalankan Laravel:
+   ```bash
+   php artisan serve
+   ```
+   Lalu di terminal baru, jalankan CSS Compiler:
+   ```bash
+   npm run dev
+   ```
+5. **Sukses!** Buka browser ke `http://localhost:8000/login`. Seluruh transaksi yang Anda lakukan di antarmuka Laravel sekarang secara otomatis dialirkan, diubah formatnya, dan disalurkan ke kontainer-kontainer Microservice Docker secara *real-time*.
