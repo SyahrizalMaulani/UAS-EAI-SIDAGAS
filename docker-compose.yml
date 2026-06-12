@@ -1,0 +1,151 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  order-db:
+    image: mysql:8.0
+    container_name: order-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: order_db
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "33061:3306"
+    volumes:
+      - order_db_data:/var/lib/mysql
+
+  inventory-db:
+    image: mysql:8.0
+    container_name: inventory-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: inventory_db
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "33062:3306"
+    volumes:
+      - inventory_db_data:/var/lib/mysql
+
+  delivery-db:
+    image: mysql:8.0
+    container_name: delivery-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: delivery_db
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "33063:3306"
+    volumes:
+      - delivery_db_data:/var/lib/mysql
+
+  finance-db:
+    image: mysql:8.0
+    container_name: finance-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: finance_db
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "33064:3306"
+    volumes:
+      - finance_db_data:/var/lib/mysql
+
+  api-gateway:
+    build: ./integration-layer
+    container_name: api-gateway
+    ports:
+      - "${PORT_GATEWAY}:${PORT_GATEWAY}"
+    environment:
+      - PORT=${PORT_GATEWAY}
+      - ORDER_SERVICE_URL=http://order-service:${PORT_ORDER}
+      - INVENTORY_SERVICE_URL=http://inventory-service:${PORT_INVENTORY}
+      - DELIVERY_SERVICE_URL=http://delivery-service:${PORT_DELIVERY}
+      - FINANCE_SERVICE_URL=http://finance-service:${PORT_FINANCE}
+    depends_on:
+      - order-service
+      - inventory-service
+      - delivery-service
+      - finance-service
+
+  order-service:
+    build: ./order-service
+    container_name: order-service
+    ports:
+      - "${PORT_ORDER}:${PORT_ORDER}"
+    environment:
+      - PORT=${PORT_ORDER}
+      - DB_HOST=${DB_HOST_ORDER}
+      - DB_USER=${MYSQL_USER}
+      - DB_PASS=${MYSQL_PASSWORD}
+      - DB_NAME=order_db
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    depends_on:
+      - order-db
+      - rabbitmq
+
+  inventory-service:
+    build: ./inventory-service
+    container_name: inventory-service
+    ports:
+      - "${PORT_INVENTORY}:${PORT_INVENTORY}"
+    environment:
+      - PORT=${PORT_INVENTORY}
+      - DB_HOST=${DB_HOST_INVENTORY}
+      - DB_USER=${MYSQL_USER}
+      - DB_PASS=${MYSQL_PASSWORD}
+      - DB_NAME=inventory_db
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    depends_on:
+      - inventory-db
+      - rabbitmq
+
+  delivery-service:
+    build: ./delivery-service
+    container_name: delivery-service
+    ports:
+      - "${PORT_DELIVERY}:${PORT_DELIVERY}"
+    environment:
+      - PORT=${PORT_DELIVERY}
+      - DB_HOST=${DB_HOST_DELIVERY}
+      - DB_USER=${MYSQL_USER}
+      - DB_PASS=${MYSQL_PASSWORD}
+      - DB_NAME=delivery_db
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    depends_on:
+      - delivery-db
+      - rabbitmq
+
+  finance-service:
+    build: ./finance-service
+    container_name: finance-service
+    ports:
+      - "${PORT_FINANCE}:${PORT_FINANCE}"
+    environment:
+      - PORT=${PORT_FINANCE}
+      - DB_HOST=${DB_HOST_FINANCE}
+      - DB_USER=${MYSQL_USER}
+      - DB_PASS=${MYSQL_PASSWORD}
+      - DB_NAME=finance_db
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    depends_on:
+      - finance-db
+      - rabbitmq
+
+volumes:
+  rabbitmq_data:
+  order_db_data:
+  inventory_db_data:
+  delivery_db_data:
+  finance_db_data:
