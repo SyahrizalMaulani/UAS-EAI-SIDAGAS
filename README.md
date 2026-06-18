@@ -25,7 +25,7 @@ EAI_UAS/
 │   ├── .env                      # File kredensial environment variables
 │   └── docker-compose.yml        # Orkestrasi otomatis untuk 10 container
 │
-├── Backend/                      # Folder UI Frontend (Laravel 12)
+├── Frontend/                      # Folder UI Frontend (Laravel 12)
 │   ├── app/Http/Controllers/     # Logika autentikasi dan controller UI
 │   ├── resources/views/          # File desain antarmuka (Blade + Tailwind CSS)
 │   │   ├── admin/                # Panel untuk Role Admin
@@ -38,60 +38,6 @@ EAI_UAS/
 ├── Infrastruktur_Docker_Manifest.md # Detail manifest Docker
 └── Arsitektur_Integrasi_EIP.md      # Penjelasan konsep EIP (Mermaid Diagram)
 ```
-
----
-
-### Diagram Arsitektur (Mermaid)
-
-Berikut adalah diagram alur integrasi sistem dari Client (BFF) hingga ke database masing-masing layanan:
-
-```mermaid
-graph TD
-    Client[Frontend / Client BFF] -->|HTTP POST JSON| Gateway(API Gateway)
-
-    subgraph Microservices [SIDAGAS Core Services]
-        Gateway -->|GraphQL| Order[Order Service]
-        Gateway -->|GraphQL| Inventory[Inventory Service]
-        Gateway -->|GraphQL| Delivery[Delivery Service]
-        Gateway -->|REST XML| Finance[Finance Service]
-    end
-
-    subgraph Message Broker [Event-Driven Layer]
-        RabbitMQ((RabbitMQ))
-    end
-
-    subgraph Databases [Shared-Nothing Data]
-        DB_O[(MySQL: Order DB)]
-        DB_I[(MySQL: Inventory DB)]
-        DB_D[(MySQL: Delivery DB)]
-        DB_F[(MySQL: Finance DB)]
-    end
-
-    Order <--> DB_O
-    Inventory <--> DB_I
-    Delivery <--> DB_D
-    Finance <--> DB_F
-
-    %% Async Communication
-    Order -.->|Publish: order.created| RabbitMQ
-    RabbitMQ -.->|Subscribe| Inventory
-    Inventory -.->|Publish: order.ready| RabbitMQ
-    RabbitMQ -.->|Subscribe| Delivery
-
-    classDef service fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0f172a;
-    classDef broker fill:#fce7f3,stroke:#db2777,stroke-width:2px;
-    classDef db fill:#f3f4f6,stroke:#4b5563,stroke-width:1px;
-
-    class Order,Inventory,Delivery,Finance,Gateway service;
-    class RabbitMQ broker;
-    class DB_O,DB_I,DB_D,DB_F db;
-```
-
-### Enterprise Integration Patterns (EIP) yang Diterapkan:
-
-1. **Content-Based Router:** API Gateway mengarahkan _request_ ke layanan yang tepat berdasarkan _path_ URL (`/order`, `/inventory`, `/finance`).
-2. **Message Translator:** API Gateway secara dinamis mengonversi payload JSON dari klien menjadi format XML sebelum meneruskannya ke _Finance Service_ untuk mendemonstrasikan penyelesaian masalah heterogenitas data.
-3. **Message Endpoint & Publish-Subscribe Channel:** Layanan berkomunikasi secara asinkron via RabbitMQ. _Order Service_ bertindak sebagai _Publisher_, sedangkan _Inventory_ bertindak sebagai _Subscriber_ sekaligus _Publisher_ ke antrean berikutnya.
 
 ---
 
