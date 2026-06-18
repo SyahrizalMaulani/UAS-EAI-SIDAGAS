@@ -48,7 +48,7 @@ async function initRabbitMQ() {
         const amqpServer = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
         const connection = await amqp.connect(amqpServer);
         channel = await connection.createChannel();
-        
+
         await channel.assertQueue('order.created', { durable: true });
         await channel.assertQueue('order.ready', { durable: true });
 
@@ -66,9 +66,9 @@ async function initRabbitMQ() {
                         'UPDATE inventory SET stock = stock - ? WHERE item_name = ? AND stock >= ?',
                         [orderData.quantity, orderData.item_name, orderData.quantity]
                     );
-                    
+
                     console.log(`[Inventory Service] Stock updated for ${orderData.item_name}`);
-                    
+
                     // Publish 'order.ready'
                     orderData.status = 'ready_for_delivery';
                     channel.sendToQueue('order.ready', Buffer.from(JSON.stringify(orderData)), { persistent: true });
@@ -89,44 +89,10 @@ async function initRabbitMQ() {
     }
 }
 
-// GraphQL Schema
-const schema = buildSchema(`
-    type Item {
-        id: ID!
-        item_name: String!
-        stock: Int!
-        updated_at: String!
-    }
-
-    type Query {
-        getInventory: [Item]
-        checkStock(item_name: String!): Item
-    }
-
-    type Mutation {
-        updateStock(item_name: String!, amount: Int!): Item
-    }
-`);
-
-// GraphQL Resolvers
-const root = {
-    getInventory: async () => {
-        const [rows] = await pool.query('SELECT * FROM inventory');
-        return rows;
-    },
-    checkStock: async ({ item_name }) => {
-        const [rows] = await pool.query('SELECT * FROM inventory WHERE item_name = ?', [item_name]);
-        return rows[0];
-    },
-    updateStock: async ({ item_name, amount }) => {
-        await pool.query(
-            'INSERT INTO inventory (item_name, stock) VALUES (?, ?) ON DUPLICATE KEY UPDATE stock = stock + ?',
-            [item_name, amount, amount]
-        );
-        const [rows] = await pool.query('SELECT * FROM inventory WHERE item_name = ?', [item_name]);
-        return rows[0];
-    }
-};
+// Load modular schema and resolvers
+const schema = require('./schema');
+const getResolvers = require('./resolvers');
+const root = getResolvers(pool);
 
 app.use('/graphql', graphqlHTTP({
     schema: schema,

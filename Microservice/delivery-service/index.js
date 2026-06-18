@@ -78,46 +78,10 @@ async function initRabbitMQ() {
     }
 }
 
-// GraphQL Schema
-const schema = buildSchema(`
-    type Delivery {
-        id: ID!
-        order_id: Int!
-        customer_name: String!
-        address: String!
-        status: String!
-        created_at: String!
-    }
-
-    type Query {
-        getDeliveries: [Delivery]
-        getDelivery(id: ID!): Delivery
-    }
-
-    type Mutation {
-        updateDeliveryStatus(id: ID!, status: String!): Delivery
-    }
-`);
-
-// GraphQL Resolvers
-const root = {
-    getDeliveries: async () => {
-        const [rows] = await pool.query('SELECT * FROM deliveries');
-        return rows;
-    },
-    getDelivery: async ({ id }) => {
-        const [rows] = await pool.query('SELECT * FROM deliveries WHERE id = ?', [id]);
-        return rows[0];
-    },
-    updateDeliveryStatus: async ({ id, status }) => {
-        await pool.query(
-            'UPDATE deliveries SET status = ? WHERE id = ?',
-            [status, id]
-        );
-        const [rows] = await pool.query('SELECT * FROM deliveries WHERE id = ?', [id]);
-        return rows[0];
-    }
-};
+// Load modular schema and resolvers
+const schema = require('./schema');
+const getResolvers = require('./resolvers');
+const root = getResolvers(pool);
 
 app.use('/graphql', graphqlHTTP({
     schema: schema,

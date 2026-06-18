@@ -53,65 +53,10 @@ async function initRabbitMQ() {
     }
 }
 
-// GraphQL Schema
-const schema = buildSchema(`
-    type Order {
-        id: ID!
-        customer_name: String!
-        item_name: String!
-        quantity: Int!
-        status: String!
-        created_at: String!
-    }
-
-    type Query {
-        getOrders: [Order]
-        getOrder(id: ID!): Order
-    }
-
-    type Mutation {
-        createOrder(customer_name: String!, item_name: String!, quantity: Int!): Order
-    }
-`);
-
-// GraphQL Resolvers
-const root = {
-    getOrders: async () => {
-        const [rows] = await pool.query('SELECT * FROM orders');
-        return rows;
-    },
-    getOrder: async ({ id }) => {
-        const [rows] = await pool.query('SELECT * FROM orders WHERE id = ?', [id]);
-        return rows[0];
-    },
-    createOrder: async ({ customer_name, item_name, quantity }) => {
-        const [result] = await pool.query(
-            'INSERT INTO orders (customer_name, item_name, quantity, status) VALUES (?, ?, ?, ?)',
-            [customer_name, item_name, quantity, 'pending']
-        );
-        
-        const newOrder = {
-            id: result.insertId,
-            customer_name,
-            item_name,
-            quantity,
-            status: 'pending',
-            created_at: new Date().toISOString()
-        };
-
-        // Message Endpoint Pattern: Publish event to RabbitMQ
-        if (channel) {
-            channel.sendToQueue(
-                'order.created',
-                Buffer.from(JSON.stringify(newOrder)),
-                { persistent: true }
-            );
-            console.log(`[Order Service] Published 'order.created' event for Order ID: ${newOrder.id}`);
-        }
-
-        return newOrder;
-    }
-};
+// Load modular schema and resolvers
+const schema = require('./schema');
+const getResolvers = require('./resolvers');
+const root = getResolvers(pool, () => channel);
 
 app.use('/graphql', graphqlHTTP({
     schema: schema,
