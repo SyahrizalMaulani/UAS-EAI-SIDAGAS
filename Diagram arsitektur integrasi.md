@@ -27,8 +27,8 @@ graph TD
 
     subgraph Event-Driven Message Broker
         RMQ{{RabbitMQ<br>Publish-Subscribe Channel}}
-        Queue1[Queue: inventory_update]
-        Queue2[Queue: delivery_schedule]
+        Queue1[Queue: order.created]
+        Queue2[Queue: order.ready]
     end
 
     %% Routing Flow
